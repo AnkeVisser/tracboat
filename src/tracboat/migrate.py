@@ -299,7 +299,7 @@ def update_timetracking(issue_args, ticket):
     if 'estimatedhours' in ticket['attributes']:
         issue_args['time_estimate'] = convert(ticket['attributes']['estimatedhours'])
 
-def migrate_tickets(trac_tickets, gitlab, svn2git_revisions={}, labelmanager=None, usermanager=None):
+def migrate_tickets(trac_tickets, gitlab, svn2git_revisions={}, labelmanager=None, usermanager=None, filter_label=""):
     LOG.info('MIGRATING %d tickets to issues', len(trac_tickets))
 
     for ticket_id, ticket in six.iteritems(trac_tickets):
@@ -308,8 +308,25 @@ def migrate_tickets(trac_tickets, gitlab, svn2git_revisions={}, labelmanager=Non
         note_map = {}
         trac_note_id = 1
 
+        label_set = ticket['labels']   
+        
+        ### anke : filter tickets with label
+        if filter_label == "":
+	  found = True
+	else:
+	  found = False
+	  for val in label_set.values():
+            if isinstance(val, LabelComponent):
+	       del label_set.labels[ val.title ]
+	    if val.title == filter_label:
+	      found = True
+        if not found:
+           LOG.error('ignore ticket %s ', ticket_id)
+	   continue
+        
+        LOG.error('migrate ticket %s ', ticket_id)
+      
         issue_args = ticket_kwargs(ticket_id, ticket, svn2git_revisions=svn2git_revisions)
-        label_set = ticket['labels']
         if STATUS_AS_LABEL:
             issue_args['state'] = label_set.get_status_label().title
         else:
@@ -328,7 +345,7 @@ def migrate_tickets(trac_tickets, gitlab, svn2git_revisions={}, labelmanager=Non
 
         # Create
         gitlab_issue_id = gitlab.create_issue(**issue_args)
-        LOG.info('migrated ticket %s -> %s', ticket_id, gitlab_issue_id)
+                   
 
         # migrate attachments from comments
         for filename, attachment in six.iteritems(ticket['attachments']):
@@ -429,7 +446,7 @@ def migrate_wiki(trac_wiki, gitlab, output_dir):
 # pylint: disable=too-many-arguments
 def migrate(trac, gitlab_project_name, gitlab_version, gitlab_db_connector,
             output_wiki_path, output_uploads_path, gitlab_fallback_user,
-            usermap=None, userattrs=None, svn2git_revisions={}):
+            usermap=None, userattrs=None, svn2git_revisions={}, filter_label=""):
     LOG.info('migrating project %r to GitLab ver. %s', gitlab_project_name, gitlab_version)
     LOG.info('uploads repository path is: %r', output_uploads_path)
     db_model = model.get_model(gitlab_version)
@@ -447,7 +464,7 @@ def migrate(trac, gitlab_project_name, gitlab_version, gitlab_db_connector,
     # XXX: this clears also milestones
     # XXX: make configurable
     gitlab.clear_issues()
-#    gitlab.clear_labels()
+    gitlab.clear_labels()
 
     # 1. Wiki
 #    LOG.info('migrating %d wiki pages to: %s', len(trac['wiki']), output_wiki_path)
@@ -458,9 +475,9 @@ def migrate(trac, gitlab_project_name, gitlab_version, gitlab_db_connector,
     # create labels
     labelmanager = LabelManager(gitlab, LOG)
     labelmanager.create_labels(trac['tickets'])
-
+ 
     # 3. Issues
-    migrate_tickets(trac['tickets'], gitlab, svn2git_revisions=svn2git_revisions, labelmanager=labelmanager, usermanager=usermanager)
+    migrate_tickets(trac['tickets'], gitlab, svn2git_revisions=svn2git_revisions, labelmanager=labelmanager, usermanager=usermanager, filter_label=filter_label)
     # - gitlab bug?
     close_milestones(trac['milestones'], gitlab)
     # Farewell

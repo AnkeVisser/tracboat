@@ -49,7 +49,6 @@ def _dumps(obj, fmt=None):
     else:
         return str(obj)
 
-
 def _detect_format(filename):
     _, ext = path.splitext(filename)
     ext = ext.strip().strip('.')
@@ -163,6 +162,13 @@ def GITLAB_OPTIONS(func):  # pylint: disable=invalid-name
         show_default=True,
         help='GitLab target version',
     )
+    @click.option(
+        '--filter-label',
+        default="",
+        show_default=True,
+        help='',
+    )
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         return func(*args, **kwargs)
@@ -330,7 +336,7 @@ def export(ctx, trac_uri, ssl_verify, format, out_file):  # pylint: disable=rede
 @click.pass_context
 def migrate(ctx, umap, umap_file, fallback_user, trac_uri, ssl_verify,
             gitlab_project_name, gitlab_db_user, gitlab_db_password, gitlab_db_name,
-            gitlab_db_path, gitlab_uploads_path, gitlab_version, wiki_path,
+            gitlab_db_path, gitlab_uploads_path, gitlab_version, filter_label, wiki_path,
             from_export_file, mock, mock_path):
     """migrate a Trac instance"""
     LOG = logging.getLogger(ctx.info_name)
@@ -405,6 +411,7 @@ def migrate(ctx, umap, umap_file, fallback_user, trac_uri, ssl_verify,
     LOG.info('GitLab db name: %s', gitlab_db_name)
     LOG.info('GitLab uploads: %s', gitlab_uploads_path)
     LOG.info('GitLab fallback user: %s', fallback_user)
+    LOG.error('GitLab filter: %s', filter_label)
     trac_migrate.migrate(
         trac=project,
         gitlab_project_name=gitlab_project_name,
@@ -416,6 +423,7 @@ def migrate(ctx, umap, umap_file, fallback_user, trac_uri, ssl_verify,
         usermap=usermap,
         userattrs=userattrs,
         svn2git_revisions=svn2git_revisions,
+        filter_label=filter_label
     )
     LOG.info('migration done.')
 
